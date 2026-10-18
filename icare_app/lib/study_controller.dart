@@ -17,8 +17,7 @@ class StudyController extends ChangeNotifier {
   bool welcomed = false;
   bool authenticated = false;
   String name = '';
-  String email = '';
-  String phoneNumber = '';
+  int? age;
   StudyGroup group = StudyGroup.exerciseGoals;
   String exerciseGoal = 'good health';
   int morningMinutes = 7 * 60;
@@ -75,13 +74,16 @@ class StudyController extends ChangeNotifier {
 
   void completeAuthentication({
     required String name,
-    required String email,
-    required String phoneNumber,
+    int? age,
   }) {
     authenticated = true;
     if (name.trim().isNotEmpty) this.name = name.trim();
-    this.email = email.trim();
-    this.phoneNumber = phoneNumber.trim();
+    if (age != null) this.age = age;
+    _persist();
+  }
+
+  void logout() {
+    authenticated = false;
     _persist();
   }
 
@@ -152,13 +154,42 @@ class StudyController extends ChangeNotifier {
     _persist();
   }
 
-  void saveDayReport({required int count, required List<int> minutes}) {
-    final safeCount = count.clamp(0, 12);
+  void saveDayReport({
+    required List<ReportActivity> activities,
+    required Set<String> syncedBoutIds,
+  }) {
+    final savedActivities = activities.take(12).toList();
+    final synced = {...syncedBoutIds};
+    for (final activity in savedActivities) {
+      activity.minutes = activity.minutes.clamp(5, 300);
+      final id = activity.sourceBoutId ?? activity.id;
+      final boutIndex = bouts.indexWhere((bout) => bout.id == id);
+      final endedAt = activity.startedAt.add(
+        Duration(minutes: activity.minutes),
+      );
+      if (boutIndex >= 0) {
+        final bout = bouts[boutIndex];
+        bout.startedAt = activity.startedAt;
+        bout.endedAt = endedAt;
+        bout.activity = activity.activity;
+        bout.otherDetail = activity.otherDetail.trim();
+      } else {
+        bouts.add(
+          ActivityBout(
+            id: id,
+            startedAt: activity.startedAt,
+            endedAt: endedAt,
+            activity: activity.activity,
+            otherDetail: activity.otherDetail.trim(),
+          ),
+        );
+      }
+      activity.sourceBoutId = id;
+      synced.add(id);
+    }
     reports[dayKey(DateTime.now())] = DayReport(
-      count: safeCount,
-      minutes: [
-        for (final value in minutes.take(safeCount)) value.clamp(5, 300),
-      ],
+      activities: savedActivities,
+      syncedBoutIds: synced,
     );
     _persist();
   }
@@ -171,15 +202,16 @@ class StudyController extends ChangeNotifier {
       if (decoded is! Map) return;
       welcomed = decoded['welcomed'] == true;
       authenticated = decoded['authenticated'] == true;
-      final storedEmail = decoded['email'];
-      if (storedEmail is String) email = storedEmail;
-      final storedPhone = decoded['phoneNumber'];
-      if (storedPhone is String) phoneNumber = storedPhone;
+        final storedAge = decoded['age'];
+        if (storedAge is num) age = storedAge.toInt();
+        final legacyEmail = decoded['email'];
+        final legacyPhone = decoded['phoneNumber'];
+        final hasLegacyContact =
+          (legacyEmail is String && legacyEmail.isNotEmpty) ||
+          (legacyPhone is String && legacyPhone.isNotEmpty);
       final storedName = decoded['name'];
       if (storedName is String &&
-          !(storedName == 'Jane Smith' &&
-              email.isEmpty &&
-              phoneNumber.isEmpty)) {
+          !(storedName == 'Jane Smith' && !hasLegacyContact)) {
         name = storedName;
       }
       group = StudyGroup.byName(decoded['group'] as String?);
@@ -218,8 +250,7 @@ class StudyController extends ChangeNotifier {
         'welcomed': welcomed,
         'authenticated': authenticated,
         'name': name,
-        'email': email,
-        'phoneNumber': phoneNumber,
+        'age': age,
         'group': group.name,
         'exerciseGoal': exerciseGoal,
         'morningMinutes': morningMinutes,

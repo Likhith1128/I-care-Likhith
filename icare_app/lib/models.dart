@@ -82,7 +82,7 @@ class ActivityBout {
   });
 
   final String id;
-  final DateTime startedAt;
+  DateTime startedAt;
   DateTime? endedAt;
   ActivityKind? activity;
   String? otherDetail;
@@ -128,25 +128,101 @@ class ActivityBout {
   }
 }
 
+class ReportActivity {
+  ReportActivity({
+    required this.id,
+    required this.startedAt,
+    required this.minutes,
+    this.sourceBoutId,
+    this.activity,
+    this.otherDetail = '',
+  });
+
+  final String id;
+  String? sourceBoutId;
+  DateTime startedAt;
+  int minutes;
+  ActivityKind? activity;
+  String otherDetail;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'sourceBoutId': sourceBoutId,
+    'startedAt': startedAt.toIso8601String(),
+    'minutes': minutes,
+    'activity': activity?.name,
+    'otherDetail': otherDetail,
+  };
+
+  static ReportActivity? fromJson(Object? value) {
+    if (value is! Map) return null;
+    final id = value['id'];
+    final startedAt = value['startedAt'];
+    final minutes = value['minutes'];
+    if (id is! String || startedAt is! String || minutes is! num) return null;
+    final parsedTime = DateTime.tryParse(startedAt);
+    if (parsedTime == null) return null;
+    return ReportActivity(
+      id: id,
+      sourceBoutId: value['sourceBoutId'] as String?,
+      startedAt: parsedTime,
+      minutes: minutes.toInt(),
+      activity: ActivityKind.byName(value['activity'] as String?),
+      otherDetail: value['otherDetail'] as String? ?? '',
+    );
+  }
+}
+
 class DayReport {
-  const DayReport({required this.count, required this.minutes});
+  const DayReport({required this.activities, required this.syncedBoutIds});
 
-  final int count;
-  final List<int> minutes;
+  final List<ReportActivity> activities;
+  final Set<String> syncedBoutIds;
 
-  Map<String, Object> toJson() => {'count': count, 'minutes': minutes};
+  int get count => activities.length;
+  List<int> get minutes => [for (final activity in activities) activity.minutes];
+
+  Map<String, Object?> toJson() => {
+    'count': count,
+    'minutes': minutes,
+    'activities': [for (final activity in activities) activity.toJson()],
+    'syncedBoutIds': syncedBoutIds.toList(),
+  };
 
   static DayReport? fromJson(Object? value) {
     if (value is! Map) return null;
+    final rawActivities = value['activities'];
+    final synced = value['syncedBoutIds'];
+    final syncedBoutIds = <String>{
+      if (synced is List)
+        for (final id in synced)
+          if (id is String) id,
+    };
+    if (rawActivities is List) {
+      return DayReport(
+        activities: [
+          for (final item in rawActivities)
+            ?ReportActivity.fromJson(item),
+        ],
+        syncedBoutIds: syncedBoutIds,
+      );
+    }
+
     final count = value['count'];
     final minutes = value['minutes'];
     if (count is! num || minutes is! List) return null;
     return DayReport(
-      count: count.toInt(),
-      minutes: [
-        for (final item in minutes)
-          if (item is num) item.toInt(),
+      activities: [
+        for (var index = 0; index < count.toInt(); index++)
+          ReportActivity(
+            id: 'legacy-$index',
+            startedAt: DateTime.now(),
+            minutes: index < minutes.length && minutes[index] is num
+                ? (minutes[index] as num).toInt()
+                : 30,
+          ),
       ],
+      syncedBoutIds: syncedBoutIds,
     );
   }
 }

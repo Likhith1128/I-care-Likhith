@@ -58,20 +58,18 @@ void main() {
 
     expect(find.text('Create your account'), findsOneWidget);
     expect(find.byKey(const Key('auth-name')), findsOneWidget);
-    expect(find.byKey(const Key('auth-phone')), findsOneWidget);
+    expect(find.byKey(const Key('auth-age')), findsOneWidget);
+    expect(find.byKey(const Key('auth-email')), findsNothing);
+    expect(find.byKey(const Key('auth-phone')), findsNothing);
     expect(find.textContaining('Demo only'), findsOneWidget);
 
     await holdTap(tester, find.byKey(const Key('auth-submit')));
     await tester.pumpAndSettle();
     expect(find.text('Enter your name'), findsOneWidget);
-    expect(find.text('Enter a valid email address'), findsOneWidget);
+    expect(find.text('Enter a valid age'), findsOneWidget);
 
     await tester.enterText(find.byKey(const Key('auth-name')), 'Alex Morgan');
-    await tester.enterText(
-      find.byKey(const Key('auth-email')),
-      'alex@example.com',
-    );
-    await tester.enterText(find.byKey(const Key('auth-phone')), '5551234567');
+    await tester.enterText(find.byKey(const Key('auth-age')), '35');
     await tester.enterText(find.byKey(const Key('auth-password')), 'study1234');
     await tester.enterText(
       find.byKey(const Key('auth-confirm-password')),
@@ -82,20 +80,21 @@ void main() {
 
     expect(controller.authenticated, isTrue);
     expect(controller.displayName, 'Alex Morgan');
-    expect(controller.email, 'alex@example.com');
-    expect(controller.phoneNumber, '5551234567');
+    expect(controller.age, 35);
     expect(find.text('Welcome to the study'), findsOneWidget);
   });
 
-  testWidgets('sign-in mode shows email and password fields', (tester) async {
+  testWidgets('sign-in mode shows name and password fields', (tester) async {
     await startApp(tester, authenticated: false);
 
     await holdTap(tester, find.byKey(const Key('auth-mode-toggle')));
     await tester.pumpAndSettle();
 
     expect(find.text('Welcome back'), findsOneWidget);
-    expect(find.byKey(const Key('auth-email')), findsOneWidget);
+  expect(find.byKey(const Key('auth-name')), findsOneWidget);
     expect(find.byKey(const Key('auth-password')), findsOneWidget);
+  expect(find.byKey(const Key('auth-age')), findsNothing);
+  expect(find.byKey(const Key('auth-email')), findsNothing);
     expect(find.byKey(const Key('auth-phone')), findsNothing);
     expect(find.text('Sign in'), findsOneWidget);
   });
@@ -120,6 +119,17 @@ void main() {
     expect(begin.left, greaterThanOrEqualTo(24));
     expect(begin.right, lessThanOrEqualTo(390 - 24));
     expect(begin.height, greaterThanOrEqualTo(72));
+  });
+
+  testWidgets('home logout returns to account screen', (tester) async {
+    final controller = await startApp(tester, welcomed: true);
+
+    expect(find.text('Home'), findsOneWidget);
+    await holdTap(tester, find.byKey(const Key('home-logout')));
+    await tester.pumpAndSettle();
+
+    expect(controller.authenticated, isFalse);
+    expect(find.text('Create your account'), findsOneWidget);
   });
 
   testWidgets('each study group shows its own morning prompt', (tester) async {
@@ -246,17 +256,79 @@ void main() {
     expect(controller.completedToday.single.reportComplete, isTrue);
   });
 
+  testWidgets('evening report uses the selected activity name', (
+    tester,
+  ) async {
+    final controller = await startApp(tester, welcomed: true);
+    controller.bouts.add(
+      ActivityBout(
+        id: 'running-bout',
+        startedAt: DateTime.now().subtract(const Duration(minutes: 35)),
+        endedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+        activity: ActivityKind.running,
+      ),
+    );
+
+    await holdTap(tester, find.byKey(const Key('home-evening')));
+    await tester.pumpAndSettle();
+    expect(find.text(eveningCountQuestion), findsOneWidget);
+    expect(find.text('Running'), findsOneWidget);
+    expect(find.text('1 session recorded'), findsOneWidget);
+  });
+
+  testWidgets('evening report edits logged activities without duplicating', (
+    tester,
+  ) async {
+    final controller = await startApp(tester, welcomed: true);
+    final startedAt = DateTime.now().subtract(const Duration(minutes: 40));
+    final bout = ActivityBout(
+      id: 'logged-bout',
+      startedAt: startedAt,
+      endedAt: startedAt.add(const Duration(minutes: 30)),
+      activity: ActivityKind.running,
+    );
+    controller.bouts.add(bout);
+
+    await holdTap(tester, find.byKey(const Key('home-evening')));
+    await tester.pumpAndSettle();
+    expect(find.text('1 session recorded'), findsOneWidget);
+    expect(find.byKey(const Key('activity-row-0')), findsOneWidget);
+    expect(controller.completedToday, hasLength(1));
+
+    await holdTap(tester, find.byKey(const Key('activity-type-0')));
+    await tester.pumpAndSettle();
+    await holdTap(tester, find.text('Biking').last);
+    await tester.pumpAndSettle();
+    await holdTap(tester, find.byKey(const Key('minutes-plus-0')));
+    await tester.pumpAndSettle();
+    expect(find.text('35 min'), findsOneWidget);
+
+    await holdTap(tester, find.byKey(const Key('activity-time-0')));
+    await tester.pumpAndSettle();
+    expect(find.byType(TimePickerDialog), findsOneWidget);
+    await holdTap(tester, find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    await holdTap(tester, find.byKey(const Key('save-evening')));
+    await tester.pumpAndSettle();
+    expect(controller.bouts, hasLength(1));
+    expect(controller.todayReport?.count, 1);
+    expect(controller.todayReport?.minutes, [35]);
+    expect(bout.activity, ActivityKind.biking);
+    expect(bout.endedAt?.difference(bout.startedAt).inMinutes, 35);
+  });
+
   testWidgets('evening report asks for count and duration', (tester) async {
     final controller = await startApp(tester, welcomed: true);
 
     await holdTap(tester, find.byKey(const Key('home-evening')));
     await tester.pumpAndSettle();
     expect(find.text(eveningCountQuestion), findsOneWidget);
-    expect(find.text('0'), findsOneWidget);
+    expect(find.text('0 sessions recorded'), findsOneWidget);
 
     await holdTap(tester, find.byKey(const Key('count-plus')));
     await tester.pumpAndSettle();
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('1 session recorded'), findsOneWidget);
     expect(find.text('30 min'), findsOneWidget);
 
     await holdTap(tester, find.byKey(const Key('minutes-plus-0')));

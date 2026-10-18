@@ -13,8 +13,7 @@ class AuthenticationScreen extends StatefulWidget {
 class _AuthenticationScreenState extends State<AuthenticationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _ageController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _isSignUp = true;
@@ -23,8 +22,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
+    _ageController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -40,18 +38,10 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     final controller = StudyScope.watch(context).controller;
-    final email = _emailController.text.trim();
-    final name = _isSignUp
-        ? _nameController.text.trim()
-        : controller.name.trim().isEmpty
-        ? email.split('@').first
-        : controller.name;
+    final name = _nameController.text.trim();
     controller.completeAuthentication(
       name: name,
-      email: email,
-      phoneNumber: _isSignUp
-          ? _phoneController.text.trim()
-          : controller.phoneNumber,
+      age: _isSignUp ? int.parse(_ageController.text.trim()) : null,
     );
     if (!mounted) return;
     Navigator.of(context)
@@ -109,62 +99,37 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                           ?.copyWith(color: StudyColors.muted),
                     ),
                     const SizedBox(height: 24),
-                    if (_isSignUp) ...[
-                      TextFormField(
-                        key: const Key('auth-name'),
-                        controller: _nameController,
-                        textCapitalization: TextCapitalization.words,
-                        textInputAction: TextInputAction.next,
-                        autofillHints: const [AutofillHints.name],
-                        decoration: const InputDecoration(
-                          labelText: 'Full name',
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
-                        validator: (value) =>
-                            value == null || value.trim().isEmpty
-                            ? 'Enter your name'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                    ],
                     TextFormField(
-                      key: const Key('auth-email'),
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
+                      key: const Key('auth-name'),
+                      controller: _nameController,
+                      textCapitalization: TextCapitalization.words,
                       textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.email],
+                      autofillHints: const [AutofillHints.name],
                       decoration: const InputDecoration(
-                        labelText: 'Email address',
-                        prefixIcon: Icon(Icons.email_outlined),
+                        labelText: 'Full name',
+                        prefixIcon: Icon(Icons.person_outline),
                       ),
-                      validator: (value) {
-                        final email = value?.trim() ?? '';
-                        return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                                .hasMatch(email)
-                            ? null
-                            : 'Enter a valid email address';
-                      },
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'Enter your name'
+                          : null,
                     ),
                     if (_isSignUp) ...[
                       const SizedBox(height: 16),
                       TextFormField(
-                        key: const Key('auth-phone'),
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
+                        key: const Key('auth-age'),
+                        controller: _ageController,
+                        keyboardType: TextInputType.number,
                         textInputAction: TextInputAction.next,
-                        autofillHints: const [AutofillHints.telephoneNumber],
                         decoration: const InputDecoration(
-                          labelText: 'Phone number',
-                          prefixIcon: Icon(Icons.phone_outlined),
+                          labelText: 'Age',
+                          prefixIcon: Icon(Icons.cake_outlined),
                         ),
                         validator: (value) {
-                          final digits = (value ?? '').replaceAll(
-                            RegExp(r'[^0-9]'),
-                            '',
-                          );
-                          return digits.length >= 7 && digits.length <= 15
+                          final age = int.tryParse(value?.trim() ?? '');
+                          return age != null && age >= 1 && age <= 120
                               ? null
-                              : 'Enter a valid phone number';
+                              : 'Enter a valid age';
                         },
                       ),
                     ],

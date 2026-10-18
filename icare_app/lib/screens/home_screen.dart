@@ -22,7 +22,22 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Home', style: theme.textTheme.titleLarge),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Home', style: theme.textTheme.titleLarge),
+                    ),
+                    IconButton(
+                      key: const Key('home-logout'),
+                      tooltip: 'Log out',
+                      onPressed: () {
+                        controller.logout();
+                        Navigator.of(context).pushReplacementNamed('/auth');
+                      },
+                      icon: const Icon(Icons.logout_rounded),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 Text(
                   controller.displayName,
